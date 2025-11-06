@@ -3,21 +3,16 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Auction • Submit Player</title>
+  <title>Submit Player</title>
   <link rel="stylesheet" href="/style.css"/>
 </head>
 <body>
   <div class="container">
-    <div class="header">
-      <div class="brand">Submit Player</div>
-      <nav class="nav"></nav>
-    </div>
+    <div class="header"><div class="brand">Submit Player</div></div>
     <div class="board" style="max-width:600px">
       <form id="f" class="grid">
         <input class="input" name="name" required placeholder="Player name"/>
-        <div class="row">
-          <button class="btn primary" type="submit">Submit</button>
-        </div>
+        <div class="row"><button class="btn primary" type="submit">Submit</button></div>
       </form>
       <div id="msg" style="margin-top:10px"></div>
     </div>
@@ -31,11 +26,11 @@
       const out = document.getElementById('msg');
       if (res.ok) {
         const j = await res.json();
-        out.innerHTML = `<div class=\"tag success\">Queued: ${j.queued.name} (position ${j.queued.position})</div>`;
+        out.innerHTML = `<div class="tag">Queued: ${j.queued.name} (position ${j.queued.position})</div>`;
         e.target.reset();
       } else {
         const t = await res.text();
-        out.innerHTML = `<div class=\"tag danger\">Error: ${t}</div>`;
+        out.innerHTML = `<div class="tag">Error: ${t}</div>`;
       }
     });
   </script>

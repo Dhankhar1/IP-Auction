@@ -2,14 +2,14 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const WebSocket = require('ws');
+const PDFDocument = require('pdfkit');
 
 // ---- Config ----
 const PORT = process.env.PORT || 3000;
-const ADMIN_PASS = process.env.ADMIN_PASS || 'adminpass';
+const ADMIN_PASS = process.env.ADMIN_PASS || 'Storyprotocol';
 const INITIAL_TOKENS = 1000;
-const UPDATE_INTERVAL_MS = parseInt(process.env.UPDATE_INTERVAL_MS || '1000', 10);
 
-// Define teams and credentials (edit as needed)
+// Teams and credentials
 const TEAMS = [
   { id: 'TEAM1', name: 'Team 1', pass: 'leopard' },
   { id: 'TEAM2', name: 'Team 2', pass: 'tiger' },
@@ -23,7 +23,7 @@ const TEAMS = [
 const teamsState = new Map(); // teamId -> { tokens, purchases: [] }
 TEAMS.forEach(t => teamsState.set(t.id, { tokens: INITIAL_TOKENS, purchases: [] }));
 
-// Queue of submitted players (FIFO)
+// Queue of players (FIFO)
 const playersQueue = [];
 
 const auction = {
@@ -31,61 +31,85 @@ const auction = {
   currentPlayer: null,
   currentBid: null, // { teamId, amount }
   history: [], // [{ player, teamId, amount, ts, unsold? }]
-  deadlineAt: null, // ms timestamp when bidding window expires
+  deadlineAt: null, // ms timestamp
 };
 
 let deadlineTimer = null;
 
 // ---- Server setup ----
 const app = express();
+app.set('etag', false);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 // Hide homepage
 app.get(['/', '/index.html'], (_req, res) => res.status(404).send(''));
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('/health', (_req, res) => res.json({ ok: true }));
 
-// Player submissions API
+// Serve static, no-store for html/js/css
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'no-store');
+    }
+  }
+}));
+
+app.get('/health', (_req, res) => res.json({ ok: true }));
+app.get('/debug/state', (_req, res) => res.json(publicState()));
+
+// Player submissions (name only)
 app.post('/api/players', (req, res) => {
   const nameRaw = (req.body.name || '').toString().trim();
   if (!nameRaw) return res.status(400).json({ ok: false, error: 'name required' });
   const entry = { name: nameRaw, ts: Date.now() };
   playersQueue.push(entry);
+
+  // Auto-load next player into current slot if idle and none set (do not start)
+  if (auction.phase === 'idle' && !auction.currentPlayer) {
+    pullNextPlayer();
+  }
   queueStateBroadcast();
   res.json({ ok: true, queued: { name: entry.name, position: playersQueue.length } });
 });
 
-app.get('/api/players/pending', (_req, res) => {
-  res.json({ ok: true, pending: playersQueue.slice(0, 100) });
-});
+// PDF export
+app.get('/api/export.pdf', (req, res) => {
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'attachment; filename="auction_results.pdf"');
+  const doc = new PDFDocument({ size: 'A4', margin: 36 });
+  doc.pipe(res);
 
-// Export results (JSON or CSV)
-app.get('/api/export', (req, res) => {
-  const format = (req.query.format || 'json').toString().toLowerCase();
-  if (format === 'csv') {
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="auction_results.csv"');
-    const header = 'timestamp,player,status,team_name,team_id,amount\n';
-    const rows = auction.history.map(h => {
-      const team = h.teamId ? TEAMS.find(t => t.id === h.teamId) : null;
-      const status = h.unsold ? 'unsold' : 'sold';
-      const ts = new Date(h.ts).toISOString();
-      const name = (team && team.name) ? team.name.replaceAll('"','""') : '';
-      return `${ts},"${(h.player||'').replaceAll('"','""')}",${status},"${name}",${team?team.id:''},${h.amount||0}`;
-    }).join('\n');
-    res.send(header + rows + (rows? '\n':'') );
-  } else {
-    res.json({
-      history: auction.history,
-      teams: TEAMS.map(t => ({ id: t.id, name: t.name, tokens: teamsState.get(t.id).tokens, purchases: teamsState.get(t.id).purchases })),
-    });
-  }
+  doc.fontSize(18).text('Auction Results');
+  doc.moveDown(0.2).fontSize(10).fillColor('#555').text(new Date().toLocaleString());
+  doc.moveDown();
+
+  doc.fillColor('#000').fontSize(14).text('Teams Summary');
+  TEAMS.forEach(t => {
+    const ts = teamsState.get(t.id);
+    doc.fontSize(10).text(`- ${t.name || ''} (ID: ${t.id}) | Tokens: ${ts.tokens}`);
+  });
+  doc.moveDown();
+
+  doc.fontSize(14).text('Sales History').moveDown(0.3);
+  auction.history.forEach((h, i) => {
+    const team = h.teamId ? TEAMS.find(t => t.id === h.teamId) : null;
+    const status = h.unsold ? 'UNSOLD' : 'SOLD';
+    const line = `${i + 1}. ${h.player} | ${status}${team ? ' to ' + (team.name || '') : ''}${h.unsold ? '' : ' for ' + h.amount} | ${new Date(h.ts).toLocaleString()}`;
+    doc.fontSize(10).fillColor('#000').text(line);
+  });
+
+  doc.end();
 });
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server, path: '/ws' });
 
-// Helper: broadcast current state to all clients
+// Heartbeat state broadcast every 1s (keeps clients synced)
+setInterval(() => {
+  try { broadcast({ type: 'state', payload: publicState() }); } catch {}
+}, 1000);
+
+// ---- Helpers ----
 function publicState() {
   const teams = TEAMS.map(t => ({
     id: t.id,
@@ -110,6 +134,7 @@ function publicState() {
     queue: {
       count: playersQueue.length,
       upNext: playersQueue[0] ? { name: playersQueue[0].name } : null,
+      preview: playersQueue.slice(0, 10).map(p => p.name),
     },
   };
 }
@@ -122,24 +147,11 @@ function send(ws, obj) {
 
 function broadcast(obj) {
   const msg = JSON.stringify(obj);
-  wss.clients.forEach(c => {
-    if (c.readyState === WebSocket.OPEN) c.send(msg);
-  });
+  wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(msg); });
 }
 
-// Throttled state broadcasts (to make updates less "snappy")
-let stateTimer = null;
-let lastStateSentAt = 0;
 function queueStateBroadcast() {
-  const send = () => {
-    stateTimer = null;
-    lastStateSentAt = Date.now();
-    broadcast({ type: 'state', payload: publicState() });
-  };
-  if (stateTimer) return; // already scheduled
-  const since = Date.now() - lastStateSentAt;
-  const delay = Math.max(0, UPDATE_INTERVAL_MS - since);
-  stateTimer = setTimeout(send, delay);
+  broadcast({ type: 'state', payload: publicState() });
 }
 
 function setTeamName(teamId, name) {
@@ -171,7 +183,6 @@ function startDeadlineTimer() {
     if (auction.phase !== 'running' || !auction.deadlineAt) return;
     const now = Date.now();
     if (now >= auction.deadlineAt) {
-      // time up
       if (!auction.currentBid) {
         markUnsold();
       } else {
@@ -194,20 +205,6 @@ function pullNextPlayer() {
   setPlayer(next ? next.name : null);
 }
 
-function resetAll() {
-  // reset auction
-  auction.phase = 'idle';
-  auction.currentPlayer = null;
-  auction.currentBid = null;
-  auction.history = [];
-  // reset queue
-  playersQueue.length = 0;
-  // reset teams
-  TEAMS.forEach(t => {
-    teamsState.set(t.id, { tokens: INITIAL_TOKENS, purchases: [] });
-  });
-}
-
 function closeAndSell() {
   if (!auction.currentPlayer || !auction.currentBid) return;
   const { teamId, amount } = auction.currentBid;
@@ -221,6 +218,8 @@ function closeAndSell() {
   auction.currentPlayer = null;
   auction.currentBid = null;
   auction.phase = 'idle';
+  // Preload next player's name (do not start)
+  pullNextPlayer();
 }
 
 function markUnsold() {
@@ -229,6 +228,8 @@ function markUnsold() {
   auction.history.unshift({ player: auction.currentPlayer, amount: 0, teamId: null, unsold: true, ts });
   auction.currentPlayer = null;
   auction.currentBid = null;
+  // Preload next player's name (do not start)
+  pullNextPlayer();
 }
 
 // ---- WebSocket handling ----
@@ -278,19 +279,19 @@ wss.on('connection', (ws) => {
           } else if (action === 'pause') {
             setPhase('paused');
             clearDeadline();
-          } else if (action === 'setPlayer') {
-            setPlayer(String(msg.player || '').trim());
-            clearDeadline();
           } else if (action === 'next') {
             // Move to next queued player and keep phase idle until admin starts
             pullNextPlayer();
             setPhase('idle');
             clearDeadline();
+          } else if (action === 'startNext') {
+            pullNextPlayer();
+            if (!auction.currentPlayer) throw new Error('No players in queue');
+            setPhase('running');
+            setDeadline(10);
           } else if (action === 'closeAndSell') {
             closeAndSell();
             clearDeadline();
-          } else if (action === 'resetAll') {
-            resetAll();
           } else {
             throw new Error('Unknown admin action');
           }
@@ -339,6 +340,6 @@ wss.on('connection', (ws) => {
 });
 
 server.listen(PORT, () => {
-  /* eslint-disable no-console */
+  // eslint-disable-next-line no-console
   console.log(`Live Auction server running on http://localhost:${PORT}`);
 });

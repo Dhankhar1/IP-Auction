@@ -3,23 +3,18 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Auction • Team</title>
+  <title>Team</title>
   <link rel="stylesheet" href="/style.css"/>
 </head>
 <body>
 <div class="container">
-  <div class="header">
-    <div class="brand">Live Auction • Team</div>
-    <nav class="nav"></nav>
-  </div>
-
+  <div class="header"><div class="brand">Team Panel</div></div>
   <div class="board">
     <div class="row" style="margin-bottom:10px">
       <input id="teamId" class="input" placeholder="TEAM1" style="width:120px"/>
       <input id="pass" class="input" type="password" placeholder="pass" style="width:140px"/>
       <button id="login" class="btn primary">Sign In</button>
     </div>
-
     <div id="teamControls" style="display:none">
       <div class="grid grid-50">
         <div>
@@ -29,7 +24,7 @@
           <div class="stat"><div class="label">Your Name</div></div>
           <div class="row" style="margin-top:6px">
             <input id="displayName" class="input" placeholder="Display name" style="width:220px"/>
-            <button id="saveName" class="btn ghost">Save</button>
+            <button id="saveName" class="btn">Save</button>
           </div>
           <div class="stat"><div class="label">Your Tokens</div></div>
           <div class="stat"><div class="value" id="tokens">-</div></div>
@@ -37,129 +32,45 @@
         <div>
           <div class="stat"><div class="label">Leading Bid</div></div>
           <div class="stat"><div class="value" id="leading">-</div></div>
-          <div class="stat"><div class="label">Time Left</div></div>
-          <div class="stat"><div class="value" id="cd">0s</div></div>
           <div class="row" style="margin-top:10px">
             <input id="amount" class="input" type="number" min="1" step="1" placeholder="Bid amount" style="width:160px"/>
             <button id="place" class="btn accent">Place Bid</button>
           </div>
+          <div class="stat"><div class="label">Time Left</div></div>
+          <div class="stat"><div class="value" id="cd">0s</div></div>
         </div>
       </div>
-
       <div class="board list" style="margin-top:16px"><pre id="purchases"></pre></div>
     </div>
   </div>
-
-  <div class="footer">Bid while phase is running</div>
 </div>
-<script src="/common.js"></script>
 <script>
-  const ui = {
-    teamId: document.getElementById('teamId'),
-    pass: document.getElementById('pass'),
-    login: document.getElementById('login'),
-    phase: document.getElementById('phase'),
-    player: document.getElementById('player'),
-    tokens: document.getElementById('tokens'),
-    leading: document.getElementById('leading'),
-    amount: document.getElementById('amount'),
-    place: document.getElementById('place'),
-    purchases: document.getElementById('purchases'),
+  function wsUrl(){const p=location.protocol==='https:'?'wss':'ws';return `${p}://${location.host}/ws`}
+  const ui={
+    teamId:document.getElementById('teamId'), pass:document.getElementById('pass'), login:document.getElementById('login'),
+    phase:document.getElementById('phase'), player:document.getElementById('player'), tokens:document.getElementById('tokens'),
+    leading:document.getElementById('leading'), amount:document.getElementById('amount'), place:document.getElementById('place'),
+    purchases:document.getElementById('purchases'), displayName:document.getElementById('displayName')
   };
-  const sock = connectWS();
-  ui.login.onclick = () => {
-    sock.send(JSON.stringify({ type: 'login', role: 'team', teamId: ui.teamId.value.trim(), pass: ui.pass.value }));
-  };
-
-  // Auto-login via URL params ?team=TEAM1&pass=leopard
-  const params = new URLSearchParams(location.search);
-  const qTeam = params.get('team');
-  const qPass = params.get('pass');
-  if (qTeam && qPass) {
-    ui.teamId.value = qTeam;
-    ui.pass.value = qPass;
-    sock.addEventListener('open', () => {
-      ui.login.click();
-    });
+  const controls=document.getElementById('teamControls');
+  let ws; let myId=null; let cdTimer;
+  function connect(){
+    ws=new WebSocket(wsUrl());
+    ws.onopen=()=>{const p=new URLSearchParams(location.search); const qTeam=p.get('team'); const qPass=p.get('pass'); if(qTeam&&qPass){ui.teamId.value=qTeam; ui.pass.value=qPass; ws.send(JSON.stringify({type:'login',role:'team',teamId:qTeam,pass:qPass}));}}
+    ws.onmessage=(ev)=>{try{const d=JSON.parse(ev.data); if(d.type==='error') return; if(d.type==='login_ok'&&d.payload.teamId){myId=d.payload.teamId; controls.style.display='';} if(d.type==='state') render(d.payload);}catch{}};
+    ws.onclose=()=>setTimeout(connect,800);
   }
-
-  // Hide controls until login
-  const controls = document.getElementById('teamControls');
-
-  ui.place.onclick = () => {
-    const amount = parseInt(ui.amount.value, 10);
-    if (Number.isFinite(amount) && amount > 0) {
-      sock.send(JSON.stringify({ type: 'bid', amount }));
-    }
-  };
-  const saveName = document.getElementById('saveName');
-  const displayName = document.getElementById('displayName');
-  if (saveName) {
-    saveName.onclick = () => {
-      const name = displayName.value.trim();
-      if (name) sock.send(JSON.stringify({ type: 'team', action: 'setName', name }));
-    };
+  connect();
+  ui.login.onclick=()=>ws.send(JSON.stringify({type:'login',role:'team',teamId:ui.teamId.value.trim(),pass:ui.pass.value}));
+  document.getElementById('saveName').onclick=()=>{const n=ui.displayName.value.trim(); if(n) ws.send(JSON.stringify({type:'team',action:'setName',name:n}));};
+  ui.place.onclick=()=>{const v=parseInt(ui.amount.value,10); if(Number.isFinite(v)&&v>0) ws.send(JSON.stringify({type:'bid',amount:v}));};
+  function render(state){
+    ui.phase.textContent=state.auction.phase; ui.phase.className='tag '+(state.auction.phase==='running'?'success':state.auction.phase==='paused'?'warn':'');
+    ui.player.textContent=state.auction.currentPlayer||'-';
+    if(state.auction.currentBid){const t=state.teams.find(x=>x.id===state.auction.currentBid.teamId); ui.leading.textContent=`${t?t.name:''} ${state.auction.currentBid.amount}`.trim();} else ui.leading.textContent='-';
+    if(myId){const me=state.teams.find(t=>t.id===myId); ui.tokens.textContent=me?me.tokens:'-'; ui.purchases.textContent=(me&&me.purchases)?me.purchases.map(p=>`${new Date(p.ts).toLocaleTimeString()} | ${p.player} - ${p.amount}`).join('\n'):''; if(me && me.name && !ui.displayName.value) ui.displayName.value=me.name;}
+    const deadline=state.auction.deadlineAt||0; if(cdTimer) clearInterval(cdTimer); const tick=()=>{const s=Math.max(0,Math.ceil((deadline-Date.now())/1000)); document.getElementById('cd').textContent=s+'s';}; tick(); if(deadline) cdTimer=setInterval(tick,500);
   }
-
-  // Show controls after login_ok
-  sock.addEventListener('message', (ev) => {
-    try {
-      const data = JSON.parse(ev.data);
-      if (data.type === 'login_ok' && data.payload.teamId) {
-        controls.style.display = '';
-      }
-    } catch {}
-  });
-  sock.onmessage = (ev) => onMessage(ev, (state) => render(state));
-
-  let cdTimer;
-  function render(state) {
-    ui.phase.textContent = state.auction.phase;
-    ui.phase.className = 'tag ' + (state.auction.phase === 'running' ? 'success' : state.auction.phase === 'paused' ? 'warn' : '');
-    ui.player.textContent = state.auction.currentPlayer || '-';
-
-    // Try to infer this team's ID from purchases list after login success message
-    let myId = (window.__teamId) || null;
-    if (!myId && state.teams.length) {
-      // noop; will be set on login_ok
-    }
-    ui.tokens.textContent = (myId ? (state.teams.find(t => t.id === myId)||{}).tokens : '-')
-
-    if (state.auction.currentBid) {
-      const t = state.teams.find(x => x.id === state.auction.currentBid.teamId);
-      ui.leading.textContent = `${t ? t.name : ''} ${state.auction.currentBid.amount}`.trim();
-    } else {
-      ui.leading.textContent = '-';
-    }
-
-    if (myId) {
-      const me = state.teams.find(t => t.id === myId);
-      ui.tokens.textContent = me ? me.tokens : '-';
-      ui.purchases.textContent = (me && me.purchases) ? me.purchases.map(p => `${new Date(p.ts).toLocaleTimeString()} | ${p.player} - ${p.amount}`).join('\n') : '';
-      if (me && me.name && displayName && !displayName.value) displayName.value = me.name;
-    }
-
-    // countdown
-    if (cdTimer) clearInterval(cdTimer);
-    const cdEl = document.getElementById('cd');
-    const deadline = state.auction.deadlineAt || 0;
-    const tick = () => {
-      const remain = Math.max(0, Math.ceil((deadline - Date.now())/1000));
-      cdEl.textContent = remain + 's';
-    };
-    tick();
-    if (deadline) cdTimer = setInterval(tick, 500);
-  }
-
-  // track login_ok for teamId
-  sock.addEventListener('message', (ev) => {
-    try {
-      const data = JSON.parse(ev.data);
-      if (data.type === 'login_ok' && data.payload.teamId) {
-        window.__teamId = data.payload.teamId;
-      }
-    } catch {}
-  });
 </script>
 </body>
 </html>

@@ -6,10 +6,11 @@
   "license": "MIT",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon --watch server.js --watch public --ext js,html --exec node server.js"
+    "dev": "nodemon --watch server.js --watch public --ext js,html,css --exec node server.js"
   },
   "dependencies": {
     "express": "^4.19.2",
+    "pdfkit": "^0.15.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
