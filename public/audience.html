@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Auction • Audience</title>
+  <link rel="stylesheet" href="/style.css"/>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="brand">Live Auction • Audience</div>
+    <nav class="nav"></nav>
+  </div>
+
+  <div class="board grid grid-50">
+    <div>
+      <div class="row"><span class="tag" id="phase">Idle</span></div>
+      <div class="stat"><div class="label">Player</div></div>
+      <div class="stat"><div class="value" id="player">-</div></div>
+      <div class="stat"><div class="label">Leading Bid</div></div>
+      <div class="stat"><div class="value" id="leading">-</div></div>
+      <div class="stat"><div class="label">Time Left</div></div>
+      <div class="stat"><div class="value" id="cd">0s</div></div>
+    </div>
+    <div>
+      <div class="list"><pre id="history"></pre></div>
+    </div>
+  </div>
+
+  <div class="board list" style="margin-top:16px"><pre id="teams"></pre></div>
+
+  <div class="footer">Live updates</div>
+</div>
+<script src="/common.js"></script>
+<script>
+  const ui = {
+    phase: document.getElementById('phase'),
+    player: document.getElementById('player'),
+    leading: document.getElementById('leading'),
+    teams: document.getElementById('teams'),
+    history: document.getElementById('history'),
+    cd: document.getElementById('cd'),
+  };
+  const sock = connectWS();
+  sock.onopen = () => sock.send(JSON.stringify({ type: 'login', role: 'audience' }));
+  sock.onmessage = (ev) => onMessage(ev, (state) => render(state));
+
+  let cdTimer;
+  function render(state) {
+    ui.phase.textContent = state.auction.phase;
+    ui.phase.className = 'tag ' + (state.auction.phase === 'running' ? 'success' : state.auction.phase === 'paused' ? 'warn' : '');
+    ui.player.textContent = state.auction.currentPlayer || '-';
+    if (state.auction.currentBid) {
+      const t = state.teams.find(x => x.id === state.auction.currentBid.teamId);
+      ui.leading.textContent = `${t ? t.name : ''} ${state.auction.currentBid.amount}`.trim();
+    } else {
+      ui.leading.textContent = '-';
+    }
+    ui.teams.textContent = state.teams.map(t => `${t.name || ''} - tokens: ${t.tokens}`).join('\n');
+    ui.history.textContent = state.auction.history.map(h => `${new Date(h.ts).toLocaleTimeString()} | ${h.unsold ? (h.player + ' unsold') : (h.player + ' sold to ' + (state.teams.find(t => t.id===h.teamId)?.name || '') + ' for ' + h.amount)}`).join('\n');
+
+    if (cdTimer) clearInterval(cdTimer);
+    const deadline = state.auction.deadlineAt || 0;
+    const tick = () => {
+      const remain = Math.max(0, Math.ceil((deadline - Date.now())/1000));
+      ui.cd.textContent = remain + 's';
+    };
+    tick();
+    if (deadline) cdTimer = setInterval(tick, 500);
+  }
+</script>
+</body>
+</html>
