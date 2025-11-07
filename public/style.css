@@ -39,13 +39,14 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace
   -webkit-mask-image: radial-gradient(ellipse at 70% 70%, #000 58%, transparent 95%);
   mask-image: radial-gradient(ellipse at 70% 70%, #000 58%, transparent 95%);
 }
-.wm-aud{position:fixed;left:50%;top:50%;width:min(60vw,600px);height:min(60vw,600px);
+.wm-aud{position:fixed;inset:0;margin:auto;display:block;width:min(60vw,600px);height:min(60vw,600px);
   background-image:url('/images/story-smashkart-event.png'), url('/images/story-smashkart-event.jpg');
-  background-position:center; background-size:contain; background-repeat:no-repeat; opacity:.5; pointer-events:none; z-index:2147483647;
-  filter:saturate(.9) brightness(.55);
-  transform: translate(-50%,-50%) rotate(-90deg);
+  background-position:center; background-size:contain; background-repeat:no-repeat; opacity:.6; pointer-events:none; z-index:2147483647;
+  filter:saturate(.85) brightness(.33);
+  transform: rotate(-90deg);
   transform-origin: 50% 50%;
-  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, #000 70%, transparent 98%);
-  mask-image: radial-gradient(ellipse at 50% 50%, #000 70%, transparent 98%);
+  border-radius:24px;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 50%, #000 68%, transparent 96%);
+  mask-image: radial-gradient(ellipse at 50% 50%, #000 68%, transparent 96%);
 }
 @media(max-width:900px){.grid-50{grid-template-columns:1fr}.stat .value{font-size:28px}}
