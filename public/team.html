@@ -68,7 +68,7 @@
     ui.phase.textContent=state.auction.phase; ui.phase.className='tag '+(state.auction.phase==='running'?'success':state.auction.phase==='paused'?'warn':'');
     ui.player.textContent=state.auction.currentPlayer||'-';
     if(state.auction.currentBid){const t=state.teams.find(x=>x.id===state.auction.currentBid.teamId); ui.leading.textContent=`${t?t.name:''} ${state.auction.currentBid.amount}`.trim();} else {ui.leading.textContent='-';}
-    if(myId){const me=state.teams.find(t=>t.id===myId); ui.tokens.textContent=me?me.tokens:'-'; ui.purchases.textContent=(me&&me.purchases)?me.purchases.map(p=>`${new Date(p.ts).toLocaleTimeString()} | ${p.player} - ${p.amount}`).join('\n'):''; if(me && me.name && !ui.displayName.value) ui.displayName.value=me.name;}
+    if(myId){const me=state.teams.find(t=>t.id===myId); ui.tokens.textContent=me?me.tokens:'-'; ui.purchases.textContent=(me&&me.purchases)?me.purchases.map(p=>`${new Date(p.ts).toLocaleTimeString()} | ${p.player} - ${p.amount}`).join('\n'.replace('\\n','\n')):''; if(me && me.name && !ui.displayName.value) ui.displayName.value=me.name;}
     const deadline=state.auction.deadlineAt||0; if(cdTimer) clearInterval(cdTimer); const tick=()=>{const s=Math.max(0,Math.ceil((deadline-Date.now())/1000)); document.getElementById('cd').textContent=s+'s';}; tick(); if(deadline) cdTimer=setInterval(tick,500);
   }
 </script>

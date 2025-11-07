@@ -56,8 +56,8 @@
     ui.player.textContent=state.auction.currentPlayer||'-';
     ui.base.textContent=(state.auction.currentBasePrice||'-');
     if(state.auction.currentBid){const t=state.teams.find(x=>x.id===state.auction.currentBid.teamId); ui.leading.textContent=`${t?t.name:''} ${state.auction.currentBid.amount}`.trim();} else ui.leading.textContent='-';
-    ui.teams.textContent=state.teams.map(t=>`${t.name||''} - tokens: ${t.tokens}`).join('\\n');
-    ui.history.textContent=state.auction.history.map(h=>`${new Date(h.ts).toLocaleTimeString()} | ${h.unsold?(h.player+' unsold'):(h.player+' sold to '+(state.teams.find(t=>t.id===h.teamId)?.name||'')+' for '+h.amount)}`).join('\\n');
+    ui.teams.textContent=state.teams.map(t=>`${t.name||''} - tokens: ${t.tokens}`).join('\n');
+    ui.history.textContent=state.auction.history.map(h=>`${new Date(h.ts).toLocaleTimeString()} | ${h.unsold?(h.player+' unsold'):(h.player+' sold to '+(state.teams.find(t=>t.id===h.teamId)?.name||'')+' for '+h.amount)}`).join('\n');
     if(cdTimer) clearInterval(cdTimer); const deadline=state.auction.deadlineAt||0; const tick=()=>{const s=Math.max(0,Math.ceil((deadline-Date.now())/1000)); ui.cd.textContent=s+'s';}; tick(); if(deadline) cdTimer=setInterval(tick,500);
     if(state.counts){ ui.sold.textContent=state.counts.sold; ui.unsold.textContent=state.counts.unsold; }
   }
