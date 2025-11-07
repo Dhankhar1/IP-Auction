@@ -21,6 +21,8 @@
         <div class="row"><span class="tag" id="phase">Idle</span></div>
         <div class="stat"><div class="label">Player</div></div>
         <div class="stat"><div class="value" id="player">-</div></div>
+        <div class="stat"><div class="label">Base Price</div></div>
+        <div class="stat"><div class="value" id="base">-</div></div>
         <div class="stat"><div class="label">Leading Bid</div></div>
         <div class="stat"><div class="value" id="leading">-</div></div>
         <div class="stat"><div class="label">Time Left</div></div>
@@ -37,12 +39,10 @@
   function wsUrl(){const p=location.protocol==='https:'?'wss':'ws';return `${p}://${location.host}/ws`}
   let ws; let cdTimer; const ui={
     phase:document.getElementById('phase'), player:document.getElementById('player'),
-    leading:document.getElementById('leading'), cd:document.getElementById('cd'),
+    base:document.getElementById('base'), leading:document.getElementById('leading'), cd:document.getElementById('cd'),
     teams:document.getElementById('teams'), history:document.getElementById('history'),
     sold:document.getElementById('soldCount'), unsold:document.getElementById('unsoldCount')
   };
-  const last={player:null, leading:null, sold:-1, unsold:-1};
-  function bump(el,cls='fade-in'){el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls),400);}
   function connect(){
     ws=new WebSocket(wsUrl());
     ws.onopen=()=>ws.send(JSON.stringify({type:'login',role:'audience'}));
@@ -53,12 +53,13 @@
   setInterval(async()=>{try{const r=await fetch('/debug/state',{cache:'no-store'}); render(await r.json());}catch{}},1000);
   function render(state){
     ui.phase.textContent=state.auction.phase; ui.phase.className='tag '+(state.auction.phase==='running'?'success':state.auction.phase==='paused'?'warn':'');
-    const pl=state.auction.currentPlayer||'-'; if(pl!==last.player){ui.player.textContent=pl; bump(ui.player);} else ui.player.textContent=pl;
-    if(state.auction.currentBid){const t=state.teams.find(x=>x.id===state.auction.currentBid.teamId); const l=`${t?t.name:''} ${state.auction.currentBid.amount}`.trim(); if(l!==last.leading){ui.leading.textContent=l; bump(ui.leading,'pulse'); last.leading=l;} else ui.leading.textContent=l;} else {ui.leading.textContent='-'; last.leading='-';}
-    ui.teams.textContent=state.teams.map(t=>`${t.name||''} - tokens: ${t.tokens}`).join('\n');
-    ui.history.textContent=state.auction.history.map(h=>`${new Date(h.ts).toLocaleTimeString()} | ${h.unsold?(h.player+' unsold'):(h.player+' sold to '+(state.teams.find(t=>t.id===h.teamId)?.name||'')+' for '+h.amount)}`).join('\n');
+    ui.player.textContent=state.auction.currentPlayer||'-';
+    ui.base.textContent=(state.auction.currentBasePrice||'-');
+    if(state.auction.currentBid){const t=state.teams.find(x=>x.id===state.auction.currentBid.teamId); ui.leading.textContent=`${t?t.name:''} ${state.auction.currentBid.amount}`.trim();} else ui.leading.textContent='-';
+    ui.teams.textContent=state.teams.map(t=>`${t.name||''} - tokens: ${t.tokens}`).join('\\n');
+    ui.history.textContent=state.auction.history.map(h=>`${new Date(h.ts).toLocaleTimeString()} | ${h.unsold?(h.player+' unsold'):(h.player+' sold to '+(state.teams.find(t=>t.id===h.teamId)?.name||'')+' for '+h.amount)}`).join('\\n');
     if(cdTimer) clearInterval(cdTimer); const deadline=state.auction.deadlineAt||0; const tick=()=>{const s=Math.max(0,Math.ceil((deadline-Date.now())/1000)); ui.cd.textContent=s+'s';}; tick(); if(deadline) cdTimer=setInterval(tick,500);
-    if(state.counts){ if(state.counts.sold!==last.sold){ui.sold.textContent=state.counts.sold; bump(ui.sold);} else ui.sold.textContent=state.counts.sold; if(state.counts.unsold!==last.unsold){ui.unsold.textContent=state.counts.unsold; bump(ui.unsold);} else ui.unsold.textContent=state.counts.unsold; }
+    if(state.counts){ ui.sold.textContent=state.counts.sold; ui.unsold.textContent=state.counts.unsold; }
   }
 </script>
 </body>

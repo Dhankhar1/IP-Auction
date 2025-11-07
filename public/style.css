@@ -30,8 +30,4 @@ body{
 .list{background:#fff;border:1px solid rgba(163,28,74,.12);border-radius:12px;padding:10px}
 pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,Consolas,monospace}
 .footer{color:var(--muted);font-size:12px;margin-top:18px;text-align:center}
-.fade-in{animation:fadeIn .4s ease}
-.pulse{animation:pulse .6s ease}
-@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-@keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.03)}100%{transform:scale(1)}}
 @media(max-width:900px){.grid-50{grid-template-columns:1fr}.stat .value{font-size:28px}}

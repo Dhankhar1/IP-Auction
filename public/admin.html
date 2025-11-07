@@ -36,6 +36,8 @@
         <div class="row"><span class="tag" id="phaseTag">Idle</span></div>
         <div class="stat"><div class="label">Current Player</div></div>
         <div class="stat"><div class="value" id="cur">-</div></div>
+        <div class="stat"><div class="label">Base Price</div></div>
+        <div class="stat"><div class="value" id="base">-</div></div>
         <div class="stat"><div class="label">Leading Bid</div></div>
         <div class="stat"><div class="value" id="lead">-</div></div>
         <div class="stat"><div class="label">Time Left</div></div>
@@ -61,7 +63,7 @@
   function wsUrl(){const p=location.protocol==='https:'?'wss':'ws';return `${p}://${location.host}/ws`}
   let ws;const ui={
     pass:pass, login:login, start:start, startNext:startNext, pause:pause, sell:sell, next:next,
-    msg:msg, phaseTag:phaseTag, cur:cur, lead:lead, cd:cd, upNext:upNext, qCount:qCount, pending:pending,
+    msg:msg, phaseTag:phaseTag, cur:cur, base:base, lead:lead, cd:cd, upNext:upNext, qCount:qCount, pending:pending,
     teams:document.getElementById('teams'), history:document.getElementById('history'),
     sold:document.getElementById('soldCount'), unsold:document.getElementById('unsoldCount')
   };
@@ -80,14 +82,14 @@
   ui.next.onclick=()=>ws.send(JSON.stringify({type:'admin',action:'next'}));
   // HTTP fallback poll
   setInterval(async()=>{try{const r=await fetch('/debug/state',{cache:'no-store'}); render(await r.json());}catch{}},1000);
-  let cdTimer; const last={cur:null, upNext:null, lead:null, sold:-1, unsold:-1};
-  function bump(el,cls='fade-in'){el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls),400);}
+  let cdTimer;
   function render(state){
     ui.phaseTag.textContent=state.auction.phase; ui.phaseTag.className='tag '+(state.auction.phase==='running'?'success':state.auction.phase==='paused'?'warn':'');
-    const curPlayer=state.auction.currentPlayer||'-'; if(curPlayer!==last.cur){ui.cur.textContent=curPlayer; bump(ui.cur); last.cur=curPlayer;} else {ui.cur.textContent=curPlayer;}
-    if(state.auction.currentBid){const t=state.teams.find(x=>x.id===state.auction.currentBid.teamId); const l=`${t?t.name:''} ${state.auction.currentBid.amount}`.trim(); if(l!==last.lead){ui.lead.textContent=l; bump(ui.lead,'pulse'); last.lead=l;} else ui.lead.textContent=l;}
-    else {ui.lead.textContent='-'; last.lead='-';}
-    const up=state.queue.upNext?state.queue.upNext.name:'-'; if(up!==last.upNext){ui.upNext.textContent=up; bump(ui.upNext);} else ui.upNext.textContent=up;
+    ui.cur.textContent=state.auction.currentPlayer||'-';
+    ui.base.textContent=(state.auction.currentBasePrice||'-');
+    if(state.auction.currentBid){const t=state.teams.find(x=>x.id===state.auction.currentBid.teamId); ui.lead.textContent=`${t?t.name:''} ${state.auction.currentBid.amount}`.trim();}
+    else {ui.lead.textContent='-';}
+    ui.upNext.textContent=state.queue.upNext?state.queue.upNext.name:'-';
     ui.qCount.textContent=state.queue.count;
     ui.pending.textContent=(state.queue.preview||[]).map((n,i)=>`${i+1}. ${n}`).join('\n');
     ui.teams.textContent=state.teams.map(t=>`${t.name||''} - tokens: ${t.tokens}`).join('\n');
@@ -95,7 +97,7 @@
     if(cdTimer) clearInterval(cdTimer);
     const deadline=state.auction.deadlineAt||0; const tick=()=>{const s=Math.max(0,Math.ceil((deadline-Date.now())/1000)); ui.cd.textContent=s+'s';};
     tick(); if(deadline) cdTimer=setInterval(tick,500);
-    if(state.counts){ if(state.counts.sold!==last.sold){ui.sold.textContent=state.counts.sold; bump(ui.sold);} else ui.sold.textContent=state.counts.sold; if(state.counts.unsold!==last.unsold){ui.unsold.textContent=state.counts.unsold; bump(ui.unsold);} else ui.unsold.textContent=state.counts.unsold; }
+    if(state.counts){ ui.sold.textContent=state.counts.sold; ui.unsold.textContent=state.counts.unsold; }
   }
 </script>
 </body>

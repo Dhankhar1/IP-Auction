@@ -21,7 +21,7 @@ const TEAMS = [
 
 // In-memory state
 const teamsState = new Map(); // teamId -> { tokens, purchases: [] }
-TEAMS.forEach(t => teamsState.set(t.id, { tokens: INITIAL_TOKENS, purchases: [], basePrice: 50 }));
+TEAMS.forEach(t => teamsState.set(t.id, { tokens: INITIAL_TOKENS, purchases: [] }));
 
 // Queue of players (FIFO)
 const playersQueue = [];
@@ -30,6 +30,7 @@ const auction = {
   phase: 'idle', // 'idle' | 'running' | 'paused'
   currentPlayer: null,
   currentBid: null, // { teamId, amount }
+  currentBasePrice: null, // number for the current player
   history: [], // [{ player, teamId, amount, ts, unsold? }]
   deadlineAt: null, // ms timestamp
 };
@@ -57,11 +58,16 @@ app.use(express.static(path.join(__dirname, 'public'), {
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.get('/debug/state', (_req, res) => res.json(publicState()));
 
-// Player submissions (name only)
+// Player submissions (name + base price 50-100)
 app.post('/api/players', (req, res) => {
   const nameRaw = (req.body.name || '').toString().trim();
+  const bpRaw = req.body.basePrice;
   if (!nameRaw) return res.status(400).json({ ok: false, error: 'name required' });
-  const entry = { name: nameRaw, ts: Date.now() };
+  const basePrice = parseInt(bpRaw, 10);
+  if (!Number.isFinite(basePrice) || basePrice < 50 || basePrice > 100) {
+    return res.status(400).json({ ok: false, error: 'basePrice must be 50-100' });
+  }
+  const entry = { name: nameRaw, basePrice, ts: Date.now() };
   playersQueue.push(entry);
 
   // Auto-load next player into current slot if idle and none set (do not start)
@@ -69,7 +75,7 @@ app.post('/api/players', (req, res) => {
     pullNextPlayer();
   }
   queueStateBroadcast();
-  res.json({ ok: true, queued: { name: entry.name, position: playersQueue.length } });
+  res.json({ ok: true, queued: { name: entry.name, basePrice: entry.basePrice, position: playersQueue.length } });
 });
 
 // PDF export
@@ -128,6 +134,7 @@ function publicState() {
       phase: auction.phase,
       currentPlayer: auction.currentPlayer,
       currentBid: auction.currentBid,
+      currentBasePrice: auction.currentBasePrice,
       history: auction.history,
       deadlineAt: auction.deadlineAt,
       countdownSeconds,
@@ -198,14 +205,16 @@ function startDeadlineTimer() {
   }, 250);
 }
 
-function setPlayer(name) {
+function setPlayer(name, basePrice) {
   auction.currentPlayer = name || null;
   auction.currentBid = null;
+  auction.currentBasePrice = basePrice || null;
 }
 
 function pullNextPlayer() {
   const next = playersQueue.shift();
-  setPlayer(next ? next.name : null);
+  if (next) setPlayer(next.name, next.basePrice);
+  else setPlayer(null, null);
 }
 
 function closeAndSell() {
@@ -220,6 +229,7 @@ function closeAndSell() {
   }
   auction.currentPlayer = null;
   auction.currentBid = null;
+  auction.currentBasePrice = null;
   auction.phase = 'idle';
   // Preload next player's name (do not start)
   pullNextPlayer();
@@ -231,6 +241,7 @@ function markUnsold() {
   auction.history.unshift({ player: auction.currentPlayer, amount: 0, teamId: null, unsold: true, ts });
   auction.currentPlayer = null;
   auction.currentBid = null;
+  auction.currentBasePrice = null;
   // Preload next player's name (do not start)
   pullNextPlayer();
 }
@@ -311,11 +322,10 @@ wss.on('connection', (ws) => {
           const current = auction.currentBid ? auction.currentBid.amount : 0;
           const t = teamsState.get(ws.user.teamId);
           if (!t) throw new Error('Unknown team');
-          // Enforce base price only for first bid on a player
+          // Enforce player's base price only for first bid on a player
           if (!auction.currentBid) {
-            const base = Math.min(100, Math.max(50, t.basePrice || 50));
-            if (amount < base) throw new Error(`First bid must be ≥ base price (${base})`);
-            if (amount < 50) throw new Error('First bid must be ≥ 50');
+            const base = Math.min(100, Math.max(50, auction.currentBasePrice || 50));
+            if (amount < base) throw new Error(`First bid must be ≥ player's base price (${base})`);
           } else {
             if (amount <= current) throw new Error('Bid must be greater than current');
           }
@@ -333,11 +343,6 @@ wss.on('connection', (ws) => {
             const newName = String(msg.name || '').trim().slice(0, 40);
             if (!newName) throw new Error('Name required');
             setTeamName(ws.user.teamId, newName);
-          } else if (action === 'setBasePrice') {
-            const bp = parseInt(msg.basePrice, 10);
-            if (!Number.isFinite(bp) || bp < 50 || bp > 100) throw new Error('Base price must be 50-100');
-            const t = teamsState.get(ws.user.teamId);
-            if (t) t.basePrice = bp;
           } else {
             throw new Error('Unknown team action');
           }
