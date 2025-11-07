@@ -27,7 +27,7 @@
       const out = document.getElementById('msg');
       if (res.ok) {
         const j = await res.json();
-        out.innerHTML = `<div class=\"tag\">Queued: ${j.queued.name} | Base: ${j.queued.basePrice} (position ${j.queued.position})</div>`;
+        out.innerHTML = `<div class="tag">Queued: ${j.queued.name} | Base: ${j.queued.basePrice} (position ${j.queued.position})</div>`;
         e.target.reset();
       } else {
         const t = await res.text();

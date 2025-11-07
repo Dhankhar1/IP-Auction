@@ -91,9 +91,9 @@
     else {ui.lead.textContent='-';}
     ui.upNext.textContent=state.queue.upNext?state.queue.upNext.name:'-';
     ui.qCount.textContent=state.queue.count;
-    ui.pending.textContent=(state.queue.preview||[]).map((n,i)=>`${i+1}. ${n}`).join('\n'.replace('\\n','\n'));
-    ui.teams.textContent=state.teams.map(t=>`${t.name||''} - tokens: ${t.tokens}`).join('\n'.replace('\\n','\n'));
-    ui.history.textContent=state.auction.history.map(h=>`${new Date(h.ts).toLocaleTimeString()} | ${h.unsold?(h.player+' unsold'):(h.player+' sold to '+(state.teams.find(t=>t.id===h.teamId)?.name||'')+' for '+h.amount)}`).join('\n'.replace('\\n','\n'));
+    ui.pending.textContent=(state.queue.preview||[]).map((n,i)=>`${i+1}. ${n}`).join('\n');
+    ui.teams.textContent=state.teams.map(t=>`${t.name||''} - tokens: ${t.tokens}`).join('\n');
+    ui.history.textContent=state.auction.history.map(h=>`${new Date(h.ts).toLocaleTimeString()} | ${h.unsold?(h.player+' unsold'):(h.player+' sold to '+(state.teams.find(t=>t.id===h.teamId)?.name||'')+' for '+h.amount)}`).join('\n');
     if(cdTimer) clearInterval(cdTimer);
     const deadline=state.auction.deadlineAt||0; const tick=()=>{const s=Math.max(0,Math.ceil((deadline-Date.now())/1000)); ui.cd.textContent=s+'s';};
     tick(); if(deadline) cdTimer=setInterval(tick,500);
