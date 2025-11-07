@@ -39,7 +39,7 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace
   -webkit-mask-image: radial-gradient(ellipse at 70% 70%, #000 58%, transparent 95%);
   mask-image: radial-gradient(ellipse at 70% 70%, #000 58%, transparent 95%);
 }
-.wm-aud{position:fixed;right:16px;bottom:16px;width:min(28vw,260px);height:min(28vw,260px);
+.wm-aud{position:fixed;right:0;bottom:16px;width:min(28vw,260px);height:min(28vw,260px);
   background-image:url('/images/story-smashkart-event.png'), url('/images/story-smashkart-event.jpg');
   background-position:center; background-size:contain; background-repeat:no-repeat; opacity:.22; pointer-events:none; z-index:0;
   filter:saturate(.8) brightness(.8);
