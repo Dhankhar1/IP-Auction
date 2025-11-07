@@ -6,7 +6,7 @@
   <title>Audience</title>
   <link rel="stylesheet" href="/style.css"/>
 </head>
-<body>
+<body class="audience">
 <div class="container">
   <div class="header" style="flex-direction:column;gap:6px">
     <div class="brand">Audience View</div>
@@ -34,7 +34,6 @@
     </div>
   </div>
   <div class="board list" style="margin-top:16px"><pre id="teams"></pre></div>
-  <div class="watermark-audience" aria-hidden="true"></div>
 </div>
 <script>
   function wsUrl(){const p=location.protocol==='https:'?'wss':'ws';return `${p}://${location.host}/ws`}
