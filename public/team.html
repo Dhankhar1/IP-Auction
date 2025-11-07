@@ -26,6 +26,11 @@
             <input id="displayName" class="input" placeholder="Display name" style="width:220px"/>
             <button id="saveName" class="btn">Save</button>
           </div>
+          <div class="stat"><div class="label">Base Price (50–100)</div></div>
+          <div class="row" style="margin-top:6px">
+            <input id="basePrice" class="input" type="number" min="50" max="100" step="1" placeholder="e.g. 50" style="width:120px"/>
+            <button id="saveBase" class="btn">Set Base</button>
+          </div>
           <div class="stat"><div class="label">Your Tokens</div></div>
           <div class="stat"><div class="value" id="tokens">-</div></div>
         </div>
@@ -50,10 +55,12 @@
     teamId:document.getElementById('teamId'), pass:document.getElementById('pass'), login:document.getElementById('login'),
     phase:document.getElementById('phase'), player:document.getElementById('player'), tokens:document.getElementById('tokens'),
     leading:document.getElementById('leading'), amount:document.getElementById('amount'), place:document.getElementById('place'),
-    purchases:document.getElementById('purchases'), displayName:document.getElementById('displayName')
+    purchases:document.getElementById('purchases'), displayName:document.getElementById('displayName'),
+    basePrice:document.getElementById('basePrice'), saveBase:document.getElementById('saveBase')
   };
   const controls=document.getElementById('teamControls');
-  let ws; let myId=null; let cdTimer;
+  let ws; let myId=null; let cdTimer; const last={player:null, leading:null};
+  function bump(el,cls='fade-in'){el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls),400);}
   function connect(){
     ws=new WebSocket(wsUrl());
     ws.onopen=()=>{const p=new URLSearchParams(location.search); const qTeam=p.get('team'); const qPass=p.get('pass'); if(qTeam&&qPass){ui.teamId.value=qTeam; ui.pass.value=qPass; ws.send(JSON.stringify({type:'login',role:'team',teamId:qTeam,pass:qPass}));}}
@@ -63,11 +70,12 @@
   connect();
   ui.login.onclick=()=>ws.send(JSON.stringify({type:'login',role:'team',teamId:ui.teamId.value.trim(),pass:ui.pass.value}));
   document.getElementById('saveName').onclick=()=>{const n=ui.displayName.value.trim(); if(n) ws.send(JSON.stringify({type:'team',action:'setName',name:n}));};
+  ui.saveBase.onclick=()=>{const v=parseInt(ui.basePrice.value,10); if(Number.isFinite(v)&&v>=50&&v<=100) ws.send(JSON.stringify({type:'team',action:'setBasePrice',basePrice:v}));};
   ui.place.onclick=()=>{const v=parseInt(ui.amount.value,10); if(Number.isFinite(v)&&v>0) ws.send(JSON.stringify({type:'bid',amount:v}));};
   function render(state){
     ui.phase.textContent=state.auction.phase; ui.phase.className='tag '+(state.auction.phase==='running'?'success':state.auction.phase==='paused'?'warn':'');
-    ui.player.textContent=state.auction.currentPlayer||'-';
-    if(state.auction.currentBid){const t=state.teams.find(x=>x.id===state.auction.currentBid.teamId); ui.leading.textContent=`${t?t.name:''} ${state.auction.currentBid.amount}`.trim();} else ui.leading.textContent='-';
+    const pl=state.auction.currentPlayer||'-'; if(pl!==last.player){ui.player.textContent=pl; bump(ui.player);} else ui.player.textContent=pl;
+    if(state.auction.currentBid){const t=state.teams.find(x=>x.id===state.auction.currentBid.teamId); const l=`${t?t.name:''} ${state.auction.currentBid.amount}`.trim(); if(l!==last.leading){ui.leading.textContent=l; bump(ui.leading,'pulse'); last.leading=l;} else ui.leading.textContent=l;} else {ui.leading.textContent='-'; last.leading='-';}
     if(myId){const me=state.teams.find(t=>t.id===myId); ui.tokens.textContent=me?me.tokens:'-'; ui.purchases.textContent=(me&&me.purchases)?me.purchases.map(p=>`${new Date(p.ts).toLocaleTimeString()} | ${p.player} - ${p.amount}`).join('\n'):''; if(me && me.name && !ui.displayName.value) ui.displayName.value=me.name;}
     const deadline=state.auction.deadlineAt||0; if(cdTimer) clearInterval(cdTimer); const tick=()=>{const s=Math.max(0,Math.ceil((deadline-Date.now())/1000)); document.getElementById('cd').textContent=s+'s';}; tick(); if(deadline) cdTimer=setInterval(tick,500);
   }

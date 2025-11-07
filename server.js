@@ -21,7 +21,7 @@ const TEAMS = [
 
 // In-memory state
 const teamsState = new Map(); // teamId -> { tokens, purchases: [] }
-TEAMS.forEach(t => teamsState.set(t.id, { tokens: INITIAL_TOKENS, purchases: [] }));
+TEAMS.forEach(t => teamsState.set(t.id, { tokens: INITIAL_TOKENS, purchases: [], basePrice: 50 }));
 
 // Queue of players (FIFO)
 const playersQueue = [];
@@ -121,6 +121,8 @@ function publicState() {
   const countdownSeconds = auction.phase === 'running' && auction.deadlineAt
     ? Math.max(0, Math.ceil((auction.deadlineAt - now) / 1000))
     : 0;
+  const sold = auction.history.filter(h => !h.unsold).length;
+  const unsold = auction.history.filter(h => h.unsold).length;
   return {
     auction: {
       phase: auction.phase,
@@ -136,6 +138,7 @@ function publicState() {
       upNext: playersQueue[0] ? { name: playersQueue[0].name } : null,
       preview: playersQueue.slice(0, 10).map(p => p.name),
     },
+    counts: { sold, unsold }
   };
 }
 
@@ -275,7 +278,7 @@ wss.on('connection', (ws) => {
             }
             if (!auction.currentPlayer) throw new Error('No players in queue');
             setPhase('running');
-            setDeadline(10);
+            setDeadline(33);
           } else if (action === 'pause') {
             setPhase('paused');
             clearDeadline();
@@ -288,7 +291,7 @@ wss.on('connection', (ws) => {
             pullNextPlayer();
             if (!auction.currentPlayer) throw new Error('No players in queue');
             setPhase('running');
-            setDeadline(10);
+            setDeadline(33);
           } else if (action === 'closeAndSell') {
             closeAndSell();
             clearDeadline();
@@ -306,11 +309,19 @@ wss.on('connection', (ws) => {
           const amount = parseInt(msg.amount, 10);
           if (!Number.isFinite(amount) || amount <= 0) throw new Error('Invalid bid');
           const current = auction.currentBid ? auction.currentBid.amount : 0;
-          if (amount <= current) throw new Error('Bid must be greater than current');
           const t = teamsState.get(ws.user.teamId);
-          if (!t || t.tokens < amount) throw new Error('Insufficient tokens');
+          if (!t) throw new Error('Unknown team');
+          // Enforce base price only for first bid on a player
+          if (!auction.currentBid) {
+            const base = Math.min(100, Math.max(50, t.basePrice || 50));
+            if (amount < base) throw new Error(`First bid must be ≥ base price (${base})`);
+            if (amount < 50) throw new Error('First bid must be ≥ 50');
+          } else {
+            if (amount <= current) throw new Error('Bid must be greater than current');
+          }
+          if (t.tokens < amount) throw new Error('Insufficient tokens');
           auction.currentBid = { teamId: ws.user.teamId, amount };
-          setDeadline(10); // extend timer on each bid
+          setDeadline(33); // extend timer on each bid
           queueStateBroadcast();
           break;
         }
@@ -322,6 +333,11 @@ wss.on('connection', (ws) => {
             const newName = String(msg.name || '').trim().slice(0, 40);
             if (!newName) throw new Error('Name required');
             setTeamName(ws.user.teamId, newName);
+          } else if (action === 'setBasePrice') {
+            const bp = parseInt(msg.basePrice, 10);
+            if (!Number.isFinite(bp) || bp < 50 || bp > 100) throw new Error('Base price must be 50-100');
+            const t = teamsState.get(ws.user.teamId);
+            if (t) t.basePrice = bp;
           } else {
             throw new Error('Unknown team action');
           }
