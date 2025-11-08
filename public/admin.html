@@ -24,6 +24,7 @@
     </div>
 
     <div class="controls" style="margin-bottom:10px">
+      <button id="start" class="btn accent">▶ Start</button>
       <button id="startNext" class="btn primary">Start Next</button>
       <button id="sell" class="btn success">✓ Sell Now</button>
     </div>
@@ -66,7 +67,7 @@
 <script>
   function wsUrl(){const p=location.protocol==='https:'?'wss':'ws';return `${p}://${location.host}/ws`}
   let ws;const ui={
-    pass:pass, login:login, startNext:startNext, sell:sell,
+    pass:pass, login:login, start:start, startNext:startNext, sell:sell,
     msg:msg, phaseTag:phaseTag, cur:cur, base:base, lead:lead, cd:cd, upNext:upNext, qCount:qCount, pending:pending,
     teams:document.getElementById('teams'), history:document.getElementById('history'),
     sold:document.getElementById('soldCount'), unsold:document.getElementById('unsoldCount'),
@@ -80,6 +81,7 @@
   }
   connect();
   ui.login.onclick=()=>ws.send(JSON.stringify({type:'login',role:'admin',pass:ui.pass.value}));
+  ui.start.onclick=()=>ws.send(JSON.stringify({type:'admin',action:'start'}));
   ui.startNext.onclick=()=>ws.send(JSON.stringify({type:'admin',action:'startNext'}));
   ui.sell.onclick=()=>ws.send(JSON.stringify({type:'admin',action:'closeAndSell'}));
   ui.subOpen.onclick=()=>{const m=parseInt(ui.subMinutes.value,10); if(Number.isFinite(m)&&m>0){ws.send(JSON.stringify({type:'admin',action:'setSubmissionWindow',seconds:m*60}));}}
