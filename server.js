@@ -54,6 +54,11 @@ app.get('/admin', sendPublic('admin.html'));
 app.get('/team', sendPublic('team.html'));
 app.get('/audience', sendPublic('audience.html'));
 app.get('/submit', sendPublic('submit.html'));
+// Also map via param in case of proxy quirks
+app.get('/:page(admin|team|audience|submit)/?', (req, res) => {
+  const map = { admin: 'admin.html', team: 'team.html', audience: 'audience.html', submit: 'submit.html' };
+  return res.sendFile(path.join(__dirname, 'public', map[req.params.page]));
+});
 // Redirect .html -> clean path (temporary to avoid caching surprises)
 app.get(['/admin.html','/team.html','/audience.html','/submit.html'], (req, res) => {
   const clean = req.path.replace('.html','');
