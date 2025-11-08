@@ -10,6 +10,7 @@
   <div class="container">
     <div class="header"><div class="brand">Submit Player</div></div>
     <div class="board" style="max-width:600px">
+      <div class="row" style="justify-content:flex-end;margin-bottom:8px"><span class="tag">Submissions close in: <b id="subLeft">-</b></span></div>
       <form id="f" class="grid">
         <input class="input" name="name" required placeholder="DISCORD USER NAME"/>
         <input class="input" name="basePrice" type="number" min="50" max="100" step="1" required placeholder="Base price (50–100)"/>
@@ -19,7 +20,26 @@
     </div>
   </div>
   <script>
-    document.getElementById('f').addEventListener('submit', async (e) => {
+    const form = document.getElementById('f');
+    const subLeft = document.getElementById('subLeft');
+    async function refreshState(){
+      try{
+        const r = await fetch('/debug/state',{cache:'no-store'});
+        const s = await r.json();
+        if(s.submission && s.submission.countdownSeconds!=null){
+          const sec = s.submission.countdownSeconds;
+          subLeft.textContent = sec+'s';
+          const closed = sec<=0;
+          form.querySelectorAll('input,button').forEach(el=>el.disabled=closed);
+          if(closed){ document.getElementById('msg').innerHTML = '<div class="tag">Registrations are closed</div>'; }
+        } else {
+          subLeft.textContent = 'closed';
+          form.querySelectorAll('input,button').forEach(el=>el.disabled=true);
+        }
+      }catch{}
+    }
+    setInterval(refreshState,1000); refreshState();
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
       const data = new URLSearchParams(fd);
@@ -30,8 +50,9 @@
         out.innerHTML = `<div class="tag">Queued: ${j.queued.name} | Base: ${j.queued.basePrice} (position ${j.queued.position})</div>`;
         e.target.reset();
       } else {
-        const t = await res.text();
-        out.innerHTML = `<div class="tag">Error: ${t}</div>`;
+        let t; try{t = (await res.json()).error;}catch{t = await res.text();}
+        if(t==='submissions_closed'){ out.innerHTML = `<div class="tag">Registrations are closed</div>`; }
+        else out.innerHTML = `<div class="tag">Error: ${t}</div>`;
       }
     });
   </script>

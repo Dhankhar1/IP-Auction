@@ -37,6 +37,7 @@ const auction = {
 };
 
 let deadlineTimer = null;
+let submissionCloseAt = null; // ms timestamp when player submissions close (null=open)
 
 // ---- Server setup ----
 const app = express();
@@ -61,6 +62,9 @@ app.get('/debug/state', (_req, res) => res.json(publicState()));
 
 // Player submissions (name + base price 50-100)
 app.post('/api/players', (req, res) => {
+  if (submissionCloseAt && Date.now() >= submissionCloseAt) {
+    return res.status(403).json({ ok: false, error: 'submissions_closed' });
+  }
   const nameRaw = (req.body.name || '').toString().trim();
   const bpRaw = req.body.basePrice;
   if (!nameRaw) return res.status(400).json({ ok: false, error: 'name required' });
@@ -149,6 +153,7 @@ function publicState() {
     : 0;
   const sold = auction.history.filter(h => !h.unsold).length;
   const unsold = auction.history.filter(h => h.unsold).length;
+  const subCountdown = submissionCloseAt ? Math.max(0, Math.ceil((submissionCloseAt - Date.now())/1000)) : null;
   return {
     auction: {
       phase: auction.phase,
@@ -159,6 +164,7 @@ function publicState() {
       deadlineAt: auction.deadlineAt,
       countdownSeconds,
     },
+    submission: { closeAt: submissionCloseAt, countdownSeconds: subCountdown },
     teams,
     queue: {
       count: playersQueue.length,
@@ -326,6 +332,12 @@ wss.on('connection', (ws) => {
           } else if (action === 'closeAndSell') {
             closeAndSell();
             clearDeadline();
+          } else if (action === 'setSubmissionWindow') {
+            const seconds = parseInt(msg.seconds, 10);
+            if (!Number.isFinite(seconds) || seconds < 0) throw new Error('Invalid seconds');
+            submissionCloseAt = seconds === 0 ? null : Date.now() + seconds * 1000;
+          } else if (action === 'closeSubmissionsNow') {
+            submissionCloseAt = Date.now();
           } else {
             throw new Error('Unknown admin action');
           }

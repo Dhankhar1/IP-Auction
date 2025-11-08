@@ -45,6 +45,13 @@
         <div class="stat"><div class="value" id="upNext">-</div></div>
         <div class="row"><span class="label">Queue</span><span class="tag" id="qCount">0</span></div>
         <div class="list" style="margin-top:6px"><pre id="pending"></pre></div>
+        <div class="stat" style="margin-top:10px"><div class="label">Player Submissions</div></div>
+        <div class="row">
+          <input id="subMinutes" class="input" type="number" min="1" step="1" placeholder="Minutes" style="width:120px"/>
+          <button id="subOpen" class="btn accent">Open for minutes</button>
+          <button id="subClose" class="btn">Close now</button>
+        </div>
+        <div class="row" style="margin-top:6px"><span class="tag">Time left: <b id="subLeft">-</b></span></div>
       </div>
     </div>
   </div>
@@ -62,7 +69,8 @@
     pass:pass, login:login, startNext:startNext, sell:sell,
     msg:msg, phaseTag:phaseTag, cur:cur, base:base, lead:lead, cd:cd, upNext:upNext, qCount:qCount, pending:pending,
     teams:document.getElementById('teams'), history:document.getElementById('history'),
-    sold:document.getElementById('soldCount'), unsold:document.getElementById('unsoldCount')
+    sold:document.getElementById('soldCount'), unsold:document.getElementById('unsoldCount'),
+    subMinutes:document.getElementById('subMinutes'), subOpen:document.getElementById('subOpen'), subClose:document.getElementById('subClose'), subLeft:document.getElementById('subLeft')
   };
   function connect(){
     ws=new WebSocket(wsUrl());
@@ -74,6 +82,8 @@
   ui.login.onclick=()=>ws.send(JSON.stringify({type:'login',role:'admin',pass:ui.pass.value}));
   ui.startNext.onclick=()=>ws.send(JSON.stringify({type:'admin',action:'startNext'}));
   ui.sell.onclick=()=>ws.send(JSON.stringify({type:'admin',action:'closeAndSell'}));
+  ui.subOpen.onclick=()=>{const m=parseInt(ui.subMinutes.value,10); if(Number.isFinite(m)&&m>0){ws.send(JSON.stringify({type:'admin',action:'setSubmissionWindow',seconds:m*60}));}}
+  ui.subClose.onclick=()=>ws.send(JSON.stringify({type:'admin',action:'closeSubmissionsNow'}));
   // HTTP fallback poll
   setInterval(async()=>{try{const r=await fetch('/debug/state',{cache:'no-store'}); render(await r.json());}catch{}},1000);
   let cdTimer;
@@ -91,6 +101,8 @@
     if(cdTimer) clearInterval(cdTimer);
     const deadline=state.auction.deadlineAt||0; const tick=()=>{const s=Math.max(0,Math.ceil((deadline-Date.now())/1000)); ui.cd.textContent=s+'s';};
     tick(); if(deadline) cdTimer=setInterval(tick,500);
+    // submission timer
+    if(state.submission && state.submission.countdownSeconds!=null){ ui.subLeft.textContent=state.submission.countdownSeconds+'s'; } else { ui.subLeft.textContent='closed'; }
     if(state.counts){ ui.sold.textContent=state.counts.sold; ui.unsold.textContent=state.counts.unsold; }
   }
 </script>
