@@ -78,7 +78,7 @@
   };
   function connect(){
     ws=new WebSocket(wsUrl());
-    ws.onopen=()=>{const q=new URLSearchParams(location.search).get('pass')||ui.pass.value; if(q) ws.send(JSON.stringify({type:'login',role:'admin',pass:q}))};
+    ws.onopen=()=>{};
     ws.onmessage=(ev)=>{try{const d=JSON.parse(ev.data); if(d.type==='error') return ui.msg.textContent='Error: '+d.error; if(d.type==='login_ok') {ui.msg.textContent=''; ui.privateWrap.style.display=''; ui.privateWrap2.style.display=''; ui.exportLink.style.display=''; ui.pass.disabled=true; ui.login.disabled=true; return;} if(d.type==='state') return render(d.payload);}catch{}};
     ws.onclose=()=>setTimeout(connect,800);
   }
