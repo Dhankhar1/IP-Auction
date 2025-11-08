@@ -3,6 +3,7 @@ const http = require('http');
 const path = require('path');
 const WebSocket = require('ws');
 const PDFDocument = require('pdfkit');
+const ExcelJS = require('exceljs');
 
 // ---- Config ----
 const PORT = process.env.PORT || 3000;
@@ -78,33 +79,52 @@ app.post('/api/players', (req, res) => {
   res.json({ ok: true, queued: { name: entry.name, basePrice: entry.basePrice, position: playersQueue.length } });
 });
 
-// PDF export
-app.get('/api/export.pdf', (req, res) => {
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', 'attachment; filename="auction_results.pdf"');
-  const doc = new PDFDocument({ size: 'A4', margin: 36 });
-  doc.pipe(res);
+// Excel export (xlsx)
+app.get('/api/export.xlsx', async (req, res) => {
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="auction_results.xlsx"');
 
-  doc.fontSize(18).text('Auction Results');
-  doc.moveDown(0.2).fontSize(10).fillColor('#555').text(new Date().toLocaleString());
-  doc.moveDown();
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Results');
 
-  doc.fillColor('#000').fontSize(14).text('Teams Summary');
-  TEAMS.forEach(t => {
-    const ts = teamsState.get(t.id);
-    doc.fontSize(10).text(`- ${t.name || ''} (ID: ${t.id}) | Tokens: ${ts.tokens}`);
+  // Title and timestamp
+  ws.addRow(['Auction Results']).font = { size: 16, bold: true, color: { argb: 'FF222222' } };
+  ws.addRow([new Date().toLocaleString()]).font = { size: 11, color: { argb: 'FF444444' } };
+  ws.addRow([]);
+
+  TEAMS.forEach((t, idx) => {
+    const ts = teamsState.get(t.id) || { tokens: 0, purchases: [] };
+    const header = ws.addRow([`${t.id} / ${t.name || ''}`, `Tokens: ${ts.tokens}`]);
+    header.font = { bold: true, color: { argb: 'FF222222' } };
+    header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F3F3' } };
+
+    const colsHeader = ws.addRow(['Time', 'Player', 'Amount']);
+    colsHeader.font = { bold: true, color: { argb: 'FF222222' } };
+
+    if (ts.purchases && ts.purchases.length) {
+      ts.purchases.slice().reverse().forEach(p => {
+        const row = ws.addRow([new Date(p.ts).toLocaleString(), p.player, p.amount]);
+        row.font = { color: { argb: 'FF222222' } };
+      });
+    } else {
+      const row = ws.addRow(['-', 'No purchases', '-']);
+      row.font = { color: { argb: 'FF444444' }, italic: true };
+    }
+    ws.addRow([]);
   });
-  doc.moveDown();
 
-  doc.fontSize(14).text('Sales History').moveDown(0.3);
-  auction.history.forEach((h, i) => {
-    const team = h.teamId ? TEAMS.find(t => t.id === h.teamId) : null;
-    const status = h.unsold ? 'UNSOLD' : 'SOLD';
-    const line = `${i + 1}. ${h.player} | ${status}${team ? ' to ' + (team.name || '') : ''}${h.unsold ? '' : ' for ' + h.amount} | ${new Date(h.ts).toLocaleString()}`;
-    doc.fontSize(10).fillColor('#000').text(line);
-  });
+  // Column sizing
+  ws.columns = [
+    { key: 'time', width: 24 },
+    { key: 'player', width: 32 },
+    { key: 'amount', width: 12 },
+  ];
 
-  doc.end();
+  // Darken all text a bit
+  ws.eachRow(r => r.eachCell(c => { c.font = { ...(c.font||{}), color: { argb: (c.font && c.font.bold) ? 'FF222222' : 'FF222222' } }; }));
+
+  await wb.xlsx.write(res);
+  res.end();
 });
 
 const server = http.createServer(app);
