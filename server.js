@@ -48,6 +48,18 @@ app.use(express.urlencoded({ extended: true }));
 // Hide homepage
 app.get(['/', '/index.html'], (_req, res) => res.status(404).send(''));
 
+// Pretty, extension-less routes for main pages
+const sendPublic = (p) => (_req, res) => res.sendFile(path.join(__dirname, 'public', p));
+app.get('/admin', sendPublic('admin.html'));
+app.get('/team', sendPublic('team.html'));
+app.get('/audience', sendPublic('audience.html'));
+app.get('/submit', sendPublic('submit.html'));
+// Redirect .html -> clean path (temporary to avoid caching surprises)
+app.get(['/admin.html','/team.html','/audience.html','/submit.html'], (req, res) => {
+  const clean = req.path.replace('.html','');
+  res.redirect(302, clean);
+});
+
 // Serve static, no-store for html/js/css
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
